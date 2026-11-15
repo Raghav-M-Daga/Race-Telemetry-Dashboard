@@ -1,0 +1,1568 @@
+/* PER Vehicle Dynamics Dashboard — dark pit-wall theme.
+   Palette mirrors src/config.js COLORS; keep the two in sync. */
+
+:root {
+  --bg: #08090b;
+  --panel: #101216;
+  --panel-edge: #1e222b;
+  --text: #f2f4f8;
+  --text-dim: #7a828f;
+  --penn-red: #990000;
+  --penn-red-bright: #d81212;
+  --electric-blue: #2ea8ff;
+  --amber: #f5a623;
+  --green: #31d07a;
+
+  --radius: 12px;
+  /* One tick is 50 ms; transitions are kept just under that so motion stays
+     continuous without ever queueing up behind the next update. */
+  --tick: 45ms;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1100px 620px at 50% -12%, #14171f 0%, var(--bg) 62%),
+    var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  min-height: 100svh;
+  padding: 20px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+/* ---------- header ---------- */
+
+.app__header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+}
+
+.app__brand { display: flex; align-items: center; gap: 14px; }
+
+/* Penn-red slash, a nod to the shield without importing an asset. */
+.app__mark {
+  width: 6px;
+  height: 46px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--penn-red-bright), var(--penn-red));
+  box-shadow: 0 0 16px #99000088;
+}
+
+.app__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.app__subtitle {
+  margin: 3px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* ---------- status ---------- */
+
+.status {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-edge);
+  background: var(--panel);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status__ticks {
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+  text-transform: none;
+  border-left: 1px solid var(--panel-edge);
+  padding-left: 8px;
+}
+
+.status--live { color: var(--green); }
+.status--live .status__dot { animation: pulse 1.6s ease-in-out infinite; }
+.status--connecting { color: var(--text-dim); }
+.status--stale { color: var(--amber); }
+.status--down { color: var(--penn-red-bright); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.banner {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 11px 16px;
+  border-radius: var(--radius);
+  border: 1px solid currentColor;
+  background: #16181e;
+  font-size: 13px;
+}
+
+.banner strong { letter-spacing: 0.1em; text-transform: uppercase; }
+.banner span { color: var(--text-dim); }
+
+/* ---------- layout ---------- */
+
+.app__grid {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+  flex: 1;
+}
+
+.panel {
+  background: linear-gradient(180deg, #121419 0%, var(--panel) 100%);
+  border: 1px solid var(--panel-edge);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.panel__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.panel__unit {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.panel__note {
+  margin: 10px 0 0;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  border-left: 2px solid var(--penn-red);
+  padding-left: 9px;
+}
+
+/* Big numeric readout shared by the gauge and the AY bar. */
+.readout {
+  margin-top: auto;
+  padding-top: 12px;
+  font-size: 40px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  text-align: center;
+  transition: color var(--tick) linear;
+}
+
+.readout__unit {
+  font-size: 14px;
+  margin-left: 5px;
+  color: var(--text-dim);
+}
+
+/* ---------- steering gauge ---------- */
+
+.gauge { width: 100%; height: auto; }
+.gauge__tick-label { fill: var(--text-dim); font-size: 10px; font-variant-numeric: tabular-nums; }
+.gauge__end-label { font-size: 10px; letter-spacing: 0.12em; }
+
+/* ---------- car view ---------- */
+
+.panel--car { align-items: center; }
+.panel--car .panel__header { width: 100%; }
+
+.car-view { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; }
+.car-view__svg { width: 100%; max-height: 62vh; height: auto; }
+.car-view__corner-label { fill: var(--text-dim); font-size: 11px; letter-spacing: 0.1em; }
+.car-view__corner-value { font-size: 15px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.car-view__hint { fill: var(--text-dim); font-size: 10px; letter-spacing: 0.22em; }
+
+/* ---------- lateral acceleration ---------- */
+
+.ay { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+
+.ay__scale,
+.ay__legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.ay__track,
+.yaw__track {
+  position: relative;
+  height: 34px;
+  border-radius: 6px;
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  overflow: hidden;
+}
+
+.ay__centerline {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--text-dim);
+  opacity: 0.55;
+}
+
+.ay__fill,
+.yaw__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* left/width are driven from JS; only the visual settle is animated here. */
+  transition: left var(--tick) linear, width var(--tick) linear, background var(--tick) linear;
+}
+
+.ay__peak {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  opacity: 0.75;
+  transition: left 120ms linear;
+}
+
+.ay__sub {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+
+/* ---------- compass ---------- */
+
+.compass { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.compass__svg { width: 118px; height: 118px; }
+
+/* The rotation is what makes the rose track the car; keep it linear so the
+   motion matches the constant tick rate instead of easing between frames. */
+.compass__rose { transition: transform 90ms linear; }
+
+.compass__cardinal { font-size: 13px; font-weight: 600; }
+
+.compass__readout { display: flex; align-items: baseline; gap: 8px; }
+
+.compass__degrees {
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+.compass__cardinal-label {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--text-dim);
+}
+
+/* ---------- yaw rate ---------- */
+
+.yaw {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 20px;
+}
+
+.yaw__label { display: flex; flex-direction: column; gap: 3px; }
+
+.yaw__threshold {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  opacity: 0.4;
+}
+
+.yaw__values { display: flex; align-items: center; gap: 14px; }
+
+.yaw__number {
+  font-size: 30px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  min-width: 92px;
+  text-align: right;
+  transition: color var(--tick) linear;
+}
+
+.yaw__severity {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  padding: 4px 10px;
+  border: 1px solid;
+  border-radius: 999px;
+}
+
+/* ---------- handling balance ---------- */
+
+/* Meter narrow, signature wide — the chart needs the room, the meter doesn't. */
+.app__grid--handling {
+  grid-template-columns: 1fr 2.15fr;
+  flex: none;
+}
+
+.balance__poles,
+.signature__legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  margin-bottom: 7px;
+}
+
+.balance__track {
+  position: relative;
+  height: 30px;
+  border-radius: 6px;
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  overflow: hidden;
+}
+
+/* Shaded band inside which the car counts as neutral. */
+.balance__deadband {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: #191d25;
+}
+
+.balance__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  transition: left var(--tick) linear, width var(--tick) linear, background 120ms linear;
+}
+
+.balance__state {
+  align-self: center;
+  margin-top: 11px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  padding: 4px 12px;
+  border: 1px solid;
+  border-radius: 999px;
+  transition: color 120ms linear, border-color 120ms linear;
+}
+
+.balance__detail {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  border-top: 1px solid var(--panel-edge);
+  padding-top: 8px;
+}
+
+.balance__detail .panel__unit { font-variant-numeric: tabular-nums; }
+
+/* ---------- handling signature chart ---------- */
+
+.signature__header-right { display: flex; align-items: center; gap: 10px; }
+
+.signature__reset {
+  background: transparent;
+  border: 1px solid var(--panel-edge);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.signature__reset:hover { color: var(--text); border-color: var(--text-dim); }
+
+.signature__legend { justify-content: flex-start; gap: 18px; color: var(--text-dim); }
+.signature__legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+.signature__legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.signature__svg { width: 100%; height: auto; flex: 1; min-height: 0; }
+.signature__axis-label { fill: var(--text-dim); font-size: 10px; font-variant-numeric: tabular-nums; }
+.signature__count { fill: #4d545f; font-size: 8.5px; font-variant-numeric: tabular-nums; }
+
+.signature__value {
+  fill: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.signature__verdict {
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-left: 2px solid var(--penn-red);
+  padding-left: 10px;
+}
+
+.signature__verdict strong { font-size: 12px; font-weight: 600; }
+.signature__verdict span { font-size: 10px; color: var(--text-dim); }
+
+/* ---------- narrow screens ---------- */
+
+@media (max-width: 1080px) {
+  .app__grid,
+  .app__grid--handling { grid-template-columns: 1fr; }
+  .app__header { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .status { justify-self: center; }
+  .car-view__svg { max-height: 46vh; }
+  .yaw { grid-template-columns: 1fr; gap: 12px; }
+  .yaw__values { justify-content: space-between; }
+}
+
+/* Respect a reduced-motion preference: values still update, they just snap. */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+/* ---------- view tabs ---------- */
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--panel-edge);
+  padding-bottom: 0;
+}
+
+.tabs__tab {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  color: var(--text-dim);
+  padding: 8px 16px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+  position: relative;
+  top: 1px;
+}
+
+.tabs__tab:hover { color: var(--text); }
+
+.tabs__tab--active {
+  color: var(--text);
+  background: var(--panel);
+  border-color: var(--panel-edge);
+  border-bottom: 1px solid var(--panel);
+}
+
+/* ---------- track map ---------- */
+
+.trackmap { flex: 1; }
+
+.trackmap__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+.trackmap__legend span { display: inline-flex; align-items: center; gap: 6px; }
+.trackmap__legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+.trackmap__body {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 18px;
+  flex: 1;
+  min-height: 0;
+}
+
+.trackmap__svg {
+  width: 100%;
+  height: auto;
+  max-height: 62vh;
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  border-radius: 8px;
+}
+
+.trackmap__cell { cursor: pointer; }
+.trackmap__rank { fill: var(--text); font-size: 9px; font-weight: 700; }
+
+.trackmap__side { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+
+.trackmap__side-title {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* ---------- hotspot list ---------- */
+
+.hotspots { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+
+.hotspots__item {
+  display: flex;
+  gap: 11px;
+  width: 100%;
+  text-align: left;
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.hotspots__item:hover { border-color: var(--text-dim); }
+
+.hotspots__rank {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.hotspots__text { display: flex; flex-direction: column; gap: 3px; }
+.hotspots__text strong { font-size: 12px; letter-spacing: 0.04em; }
+.hotspots__text span { font-size: 11px; color: var(--text-dim); line-height: 1.45; }
+.hotspots__meta { font-variant-numeric: tabular-nums; color: #5b626d !important; }
+
+/* ---------- selected cell detail ---------- */
+
+.cell-detail {
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  border-radius: 8px;
+  padding: 13px 14px;
+}
+
+.cell-detail__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-left: 3px solid;
+  padding-left: 10px;
+  margin-bottom: 10px;
+}
+
+.cell-detail__head strong { font-size: 13px; letter-spacing: 0.06em; }
+.cell-detail__line { margin: 0 0 6px; font-size: 11.5px; line-height: 1.5; color: var(--text-dim); }
+
+.cell-detail__advice {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text);
+  border-left: 2px solid var(--penn-red);
+  padding-left: 10px;
+}
+
+.cell-detail__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 14px;
+  margin: 13px 0 0;
+  padding-top: 11px;
+  border-top: 1px solid var(--panel-edge);
+}
+
+.cell-detail__stats > div { display: flex; justify-content: space-between; gap: 8px; }
+.cell-detail__stats dt { font-size: 10px; letter-spacing: 0.06em; color: var(--text-dim); text-transform: uppercase; }
+.cell-detail__stats dd { margin: 0; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+/* ---------- data guide ---------- */
+
+.guide { display: flex; flex-direction: column; gap: 16px; }
+.guide__intro { margin: 0; font-size: 12.5px; line-height: 1.65; color: var(--text-dim); max-width: 95ch; }
+
+.guide__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+.guide__card {
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  border-left: 3px solid var(--panel-edge);
+  border-radius: 8px;
+  padding: 13px 15px;
+}
+
+.guide__card--measured { border-left-color: var(--green); }
+.guide__card--derived { border-left-color: var(--electric-blue); }
+.guide__card h3 { margin: 0 0 5px; font-size: 13px; font-weight: 650; }
+.guide__card p { margin: 0 0 7px; font-size: 11.5px; line-height: 1.55; color: var(--text-dim); }
+.guide__card p:last-child { margin-bottom: 0; }
+.guide__card strong { color: var(--text); font-weight: 600; }
+
+.guide__meta {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 10.5px !important;
+  color: #5b626d !important;
+}
+
+.guide__note {
+  border-left: 2px solid var(--panel-edge);
+  padding-left: 9px;
+  font-size: 11px !important;
+  color: #6c7480 !important;
+}
+
+.guide code {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  background: #14171d;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.94em;
+}
+
+.guide__rules { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+
+.guide__rules li { display: flex; gap: 11px; align-items: flex-start; }
+.guide__rules li > span:last-child { display: flex; flex-direction: column; gap: 4px; }
+.guide__rules strong { font-size: 12px; letter-spacing: 0.04em; }
+.guide__rules span span { font-size: 11.5px; color: var(--text-dim); line-height: 1.5; }
+
+.guide__swatch { flex: none; width: 12px; height: 12px; border-radius: 50%; margin-top: 3px; }
+
+.guide__limits { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 9px; }
+.guide__limits li { font-size: 11.5px; line-height: 1.6; color: var(--text-dim); }
+.guide__limits strong { color: var(--text); font-weight: 600; }
+
+@media (max-width: 1080px) {
+  .trackmap__body { grid-template-columns: 1fr; }
+  .tabs { overflow-x: auto; }
+}
+
+/* ==========================================================================
+   COACHING VIEW — the map is the point of the page, so it gets the space.
+   ========================================================================== */
+
+.app__header--slim { grid-template-columns: auto 1fr auto; gap: 22px; }
+.app__header--slim .app__mark { height: 30px; width: 5px; }
+.app__header--slim .app__title { font-size: 15px; letter-spacing: 0.03em; }
+.app__header--slim .tabs { border-bottom: none; padding-bottom: 0; }
+
+/* ---------- headline summary ---------- */
+
+.summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 26px;
+  align-items: center;
+  background: linear-gradient(180deg, #121419 0%, var(--panel) 100%);
+  border: 1px solid var(--panel-edge);
+  border-radius: var(--radius);
+  padding: 14px 22px;
+}
+
+.summary__hero { display: flex; align-items: center; gap: 13px; }
+
+.summary__hero-value {
+  font-size: 46px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--coach-at-limit, #1baf7a);
+}
+
+.summary__hero-label {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.summary__tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+
+.summary__tile {
+  display: grid;
+  grid-template-areas: "bar bar" "value label";
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.summary__bar-track {
+  grid-area: bar;
+  height: 4px;
+  border-radius: 2px;
+  background: #1a1e26;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.summary__bar-fill { display: block; height: 100%; border-radius: 2px; transition: width 300ms linear; }
+
+.summary__tile-value {
+  grid-area: value;
+  font-size: 19px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.summary__tile-label {
+  grid-area: label;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.summary__note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 10.5px;
+  color: #5b626d;
+  line-height: 1.5;
+}
+
+/* ---------- coach layout: map hero, car model beside it ---------- */
+
+.coach {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  align-items: start;
+}
+
+/* The map panel gets the full height available. */
+.coach .trackmap { height: 100%; }
+.coach .trackmap__svg { max-height: none; height: auto; }
+
+.coach .trackmap__body { grid-template-columns: minmax(0, 1.25fr) minmax(240px, 1fr); }
+
+/* ---------- car attitude model ---------- */
+
+.attitude { position: sticky; top: 0; }
+.attitude__svg { width: 100%; height: auto; max-height: 46vh; }
+
+.attitude__key {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+.attitude__key span { display: inline-flex; align-items: center; gap: 8px; }
+
+.attitude__dash {
+  width: 18px;
+  height: 0;
+  border-top: 2.5px dashed;
+  display: inline-block;
+}
+
+.attitude__solid { width: 18px; height: 3px; border-radius: 2px; display: inline-block; }
+
+.attitude__verdict {
+  margin-top: 12px;
+  border-left: 3px solid;
+  padding-left: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.attitude__verdict strong { font-size: 13px; letter-spacing: 0.05em; }
+.attitude__verdict span { font-size: 11px; color: var(--text-dim); line-height: 1.45; }
+
+.attitude__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px 14px;
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-edge);
+}
+
+.attitude__stats > div { display: flex; flex-direction: column; gap: 2px; }
+.attitude__stats dt { font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); }
+.attitude__stats dd { margin: 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* ---------- instruments tab ---------- */
+
+.instruments__compass { display: flex; justify-content: center; }
+
+@media (max-width: 1240px) {
+  .coach { grid-template-columns: 1fr; }
+  .attitude { position: static; }
+  .summary { grid-template-columns: 1fr; gap: 16px; }
+  .summary__tiles { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ---------- lap menu ---------- */
+
+.laps { margin-bottom: 18px; }
+
+.laps__list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 30vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.laps__item {
+  display: grid;
+  grid-template-areas: "label time bars" "meta meta bars";
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 2px 10px;
+  width: 100%;
+  text-align: left;
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  border-radius: 7px;
+  padding: 7px 11px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.laps__item:hover { border-color: var(--text-dim); }
+
+.laps__item--active {
+  border-color: var(--electric-blue);
+  background: #101822;
+}
+
+.laps__label {
+  grid-area: label;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.laps__best {
+  font-style: normal;
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--green);
+  border: 1px solid var(--green);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
+.laps__time {
+  grid-area: time;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.laps__meta {
+  grid-area: meta;
+  font-size: 10px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Four tiny columns: a sparkline of how the lap was spent. */
+.laps__bars {
+  grid-area: bars;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 24px;
+}
+
+.laps__bar {
+  width: 5px;
+  height: 100%;
+  background: #1a1e26;
+  border-radius: 1.5px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.laps__bar > span { display: block; width: 100%; border-radius: 1.5px; }
+
+.laps__running {
+  margin: 8px 0 0;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+/* Pin numerals sit on a filled circle, so they need to read against it. */
+.trackmap__rank { fill: #0c0e12; font-size: 11px; font-weight: 700; }
+
+/* ---------- corner table ---------- */
+
+.corner-hero {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 14px 0 16px;
+  border-bottom: 1px solid var(--panel-edge);
+  margin-bottom: 14px;
+}
+
+.corner-hero__value {
+  font-size: 42px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--electric-blue);
+}
+
+.corner-hero__label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+.corner-table { display: flex; flex-direction: column; gap: 3px; }
+
+.corner-table__head,
+.corner-table__row {
+  display: grid;
+  grid-template-columns: 60px 74px 74px 1fr 78px 62px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.corner-table__head {
+  font-size: 9.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding-bottom: 4px;
+}
+
+.corner-table__row {
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  border-radius: 7px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.corner-table__row:hover { border-color: var(--text-dim); }
+.corner-table__row--active { border-color: var(--electric-blue); background: #101822; }
+
+.corner-table__id { font-size: 13px; font-weight: 650; letter-spacing: 0.04em; }
+.corner-table__num { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-dim); }
+
+.corner-table__loss {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.corner-table__bar {
+  flex: 1;
+  height: 6px;
+  background: #1a1e26;
+  border-radius: 3px;
+  overflow: hidden;
+  min-width: 40px;
+}
+
+.corner-table__bar > span { display: block; height: 100%; border-radius: 3px; }
+
+.corner-detail {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--panel-edge);
+}
+
+.corner-detail__list { display: flex; flex-direction: column; gap: 3px; }
+
+.corner-detail__pass {
+  display: grid;
+  grid-template-columns: 64px 62px 66px 96px 56px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 12px;
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.corner-detail__pass--best { border-color: #1baf7a55; }
+.corner-detail__lap { font-weight: 600; }
+.corner-detail__num { color: var(--text-dim); }
+.corner-detail__delta { font-weight: 600; }
+.corner-detail__reason { color: var(--text-dim); font-variant-numeric: normal; }
+
+/* ---------- settings sliders ---------- */
+
+.settings { display: flex; flex-direction: column; gap: 18px; margin-top: 12px; }
+
+.settings__row {
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  border-radius: 8px;
+  padding: 12px 15px;
+}
+
+.settings__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+
+.settings__head label {
+  font-size: 12.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings__changed {
+  font-style: normal;
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--amber);
+  border: 1px solid var(--amber);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
+.settings__value {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--electric-blue);
+}
+
+.settings__default { font-size: 10px; color: var(--text-dim); margin-left: 7px; }
+
+.settings__row input[type="range"] {
+  width: 100%;
+  accent-color: var(--electric-blue);
+  cursor: pointer;
+}
+
+.settings__help {
+  margin: 9px 0 0;
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+/* ---------- tyre curve ---------- */
+
+.tyre-curve {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 190px;
+  margin: 14px 0 10px;
+  padding-bottom: 4px;
+}
+
+.tyre-curve__col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.tyre-curve__bar {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  background: #0c0e12;
+  border-radius: 3px 3px 0 0;
+  overflow: hidden;
+}
+
+.tyre-curve__bar > span {
+  display: block;
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  transition: height 300ms linear;
+}
+
+.tyre-curve__value { font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.tyre-curve__label { font-size: 9px; color: var(--text-dim); }
+.tyre-curve__count { font-size: 8.5px; color: #4d545f; font-variant-numeric: tabular-nums; }
+
+.tyre-curve__key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.tyre-curve__key span { display: inline-flex; align-items: center; gap: 6px; }
+.tyre-curve__key i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+/* ---------- incident list ---------- */
+
+.incidents__controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.incidents__filters { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.incidents__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-family: inherit;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.incidents__chip:hover { color: var(--text); }
+.incidents__chip--active { color: var(--text); border-color: var(--text-dim); }
+.incidents__chip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.incidents__chip em { font-style: normal; font-variant-numeric: tabular-nums; opacity: 0.7; }
+
+.incidents__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.incidents__sort select {
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 9px;
+  font-family: inherit;
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.incidents__list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 62vh;
+  overflow-y: auto;
+}
+
+.incidents__row {
+  display: grid;
+  grid-template-columns: 4px 1fr auto;
+  gap: 12px;
+  align-items: start;
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  border-radius: 7px;
+  padding: 9px 12px;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.incidents__row:hover { border-color: var(--text-dim); }
+.incidents__row--active { border-color: var(--electric-blue); background: #101822; }
+.incidents__badge { width: 4px; align-self: stretch; border-radius: 2px; min-height: 22px; }
+.incidents__body { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.incidents__title { display: flex; flex-direction: column; gap: 2px; }
+.incidents__title strong { font-size: 12px; letter-spacing: 0.03em; }
+.incidents__where { font-size: 10.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+.incidents__detail { display: flex; flex-direction: column; gap: 4px; margin-top: 5px; }
+.incidents__detail span { font-size: 11px; line-height: 1.5; color: var(--text-dim); }
+
+.incidents__advice {
+  border-left: 2px solid var(--penn-red);
+  padding-left: 9px;
+  color: var(--text) !important;
+}
+
+.incidents__stats {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: right;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 1080px) {
+  .corner-table__head, .corner-table__row { grid-template-columns: 48px 60px 60px 1fr; }
+  .corner-table__head span:nth-child(n+5), .corner-table__row span:nth-child(n+5) { display: none; }
+  .corner-detail__pass { grid-template-columns: 1fr 1fr; }
+}
+
+/* ---------- corner pass detail ---------- */
+
+.corner-pass {
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  border-radius: 7px;
+  padding: 10px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.corner-pass__head {
+  display: grid;
+  grid-template-columns: 60px 60px 66px 1fr;
+  gap: 12px;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.corner-pass__headline { font-size: 12px; letter-spacing: 0.02em; font-variant-numeric: normal; }
+
+.corner-pass__speeds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.corner-pass__stat em {
+  font-style: normal;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 9px;
+  margin-right: 5px;
+}
+
+.corner-pass__detail {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.corner-pass__action {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  border-left: 2px solid var(--penn-red);
+  padding-left: 10px;
+}
+
+@media (max-width: 900px) {
+  .corner-pass__head { grid-template-columns: 1fr 1fr; }
+}
+
+/* ---------- coaching view ---------- */
+
+.coaching { flex: 1; }
+
+.coaching__laps {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--panel-edge);
+}
+
+.coaching__lap {
+  flex: none;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 1px 10px;
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  border-radius: 7px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+  text-align: left;
+}
+
+.coaching__lap:hover { border-color: var(--text-dim); }
+.coaching__lap--active { border-color: var(--electric-blue); background: #101822; }
+.coaching__lap-n { font-size: 11.5px; font-weight: 600; }
+.coaching__lap-t { font-size: 11.5px; font-variant-numeric: tabular-nums; text-align: right; }
+.coaching__lap-d { font-size: 10px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.coaching__lap-f { font-size: 10px; color: var(--text-dim); text-align: right; }
+
+.coaching__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 1.05fr);
+  gap: 18px;
+  flex: 1;
+  min-height: 0;
+}
+
+.coaching__svg {
+  /* A fixed box with preserveAspectRatio, NOT width:100% + max-height. The
+     latter pins the width and then clips the overflow, which is why only the
+     top half of the track was visible. */
+  width: 100%;
+  height: 68vh;
+  min-height: 420px;
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  border-radius: 8px;
+}
+
+.coaching__flag { cursor: pointer; }
+.coaching__flag-n { fill: var(--text); font-size: 9.5px; font-weight: 700; }
+
+.coaching__side { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; gap: 12px; }
+
+.coaching__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.coaching__legend span { display: inline-flex; align-items: center; gap: 6px; }
+.coaching__legend--dim { opacity: 0.35; }
+
+.coaching__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+
+.coaching__item {
+  display: flex;
+  gap: 11px;
+  width: 100%;
+  text-align: left;
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.coaching__item:hover { border-color: var(--text-dim); }
+
+.coaching__item-n {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.coaching__item-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.coaching__item-text strong { font-size: 12px; letter-spacing: 0.03em; }
+.coaching__item-text span { font-size: 11px; color: var(--text-dim); line-height: 1.45; }
+
+/* ---------- factor table ---------- */
+
+.factors {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.factors th {
+  text-align: left;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-weight: 600;
+  padding: 0 8px 6px 0;
+  border-bottom: 1px solid var(--panel-edge);
+}
+
+.factors th:not(:first-child), .factors td:not(:first-child) { text-align: right; }
+.factors td { padding: 5px 8px 5px 0; border-bottom: 1px solid #14171d; color: var(--text); }
+.factors td:first-child { color: var(--text-dim); font-variant-numeric: normal; }
+.factors__suspect td:first-child em { font-style: normal; color: var(--amber); font-size: 9.5px; }
+
+/* ---------- calibration ---------- */
+
+.calibration { margin-top: 14px; }
+
+.calibration__list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 8px 0 0;
+  font-size: 11px;
+}
+
+.calibration__list > div {
+  display: grid;
+  grid-template-columns: minmax(160px, auto) 1fr;
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid #14171d;
+}
+
+.calibration__list dt { color: var(--text-dim); }
+.calibration__list dd { margin: 0; color: var(--text); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 1240px) {
+  .coaching__body { grid-template-columns: 1fr; }
+}
+
+/* An excluded lap is still shown — dimmed, not hidden. */
+.coaching__lap--unclean { border-style: dashed; opacity: 0.72; }
+.coaching__lap--unclean .coaching__lap-f { color: var(--amber); }
+
+.coaching__excluded {
+  margin: 0 0 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  border-left: 2px solid var(--amber);
+  padding-left: 10px;
+}
+
+.coaching__excluded strong { color: var(--amber); }
+
+/* ---------- live status strip ---------- */
+
+.coaching__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  background: #0c0e12;
+  border: 1px solid var(--panel-edge);
+  border-radius: 7px;
+}
+
+.coaching__status strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.coaching__status-right { margin-left: auto; }
+
+.coaching__pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+.coaching__pulse--busy { background: var(--amber); animation-duration: 0.7s; }
+.coaching__lap-warn { font-style: normal; color: var(--amber); }
